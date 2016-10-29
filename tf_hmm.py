@@ -41,7 +41,8 @@ class HiddenMarkovModel(object):
       self._time_steps = time_steps
       self._create_the_computational_graph(reports=self._reports)
 
-  # front end functions
+  # front end functions #######################################################
+
   def expectation_maximization(self, dataset, max_steps=1, epsilon=0.1):
     self._recreate_the_computational_graph(dataset)
     converged = False
@@ -73,11 +74,11 @@ class HiddenMarkovModel(object):
         if converged:
           print(
             'the training process has been converged in %d steps in %.1f sec'%(
-            step, toc-tic))
+              step, toc-tic))
         else:
           print('warning : the training process has not been converged. The '
                 'maximum number of steps has been reached in %.1f sec.'%(
-                toc-tic))
+                  toc-tic))
 
   # writer = tf.train.SummaryWriter('./logs', sess.graph)
   #    merged = tf.merge_all_summaries()
@@ -91,6 +92,67 @@ class HiddenMarkovModel(object):
                    self._tp_tf: self._tp}
       return sess.run(self._posterior, feed_dict=feed_dict)
 
+  def plot(self, dataset=None):
+    plt.style.use('fivethirtyeight')
+    font = matplotlib.font_manager.FontProperties(weight='bold', size=14)
+    x = np.linspace(-4, 4, 100)
+    y = np.linspace(-4, 4, 100)
+    x_mesh, y_mesh = np.meshgrid(x, y)
+    z = matplotlib.mlab.bivariate_normal(x_mesh, y_mesh,
+                                         sigmax=self.cov[0, 0, 0],
+                                         sigmay=self.cov[0, 1, 1],
+                                         mux=self.mu[0, 0],
+                                         muy=self.mu[0, 1],
+                                         sigmaxy=self.cov[0, 0, 1])
+    plt.annotate('state #'+str(1),
+                 (self.mu[0,0]+0.5*np.sqrt(self.cov[0,0, 0]),
+                  self.mu[0,1]+0.5*np.sqrt(self.cov[0,1, 1])),
+                 fontproperties=font, color='purple')
+    for k in range(1, self._states):
+      z += matplotlib.mlab.bivariate_normal(x_mesh, y_mesh,
+                                            sigmax=self.cov[k, 0, 0],
+                                            sigmay=self.cov[k, 1, 1],
+                                            mux=self.mu[k, 0],
+                                            muy=self.mu[k, 1],
+                                            sigmaxy=self.cov[k, 0, 1])
+      plt.annotate('state #'+str(k+1),
+                   (self.mu[k,0]+0.5*np.sqrt(self.cov[k,0, 0]),
+                    self.mu[k,1]+0.5*np.sqrt(self.cov[k,1, 1])),
+                   fontproperties=font, color='purple')
+      # plt.contourf(x_mesh, y_mesh, z, alpha=0.5, cmap='Blues')
+
+    plt.contourf(x_mesh, y_mesh, z, alpha=0.5, cmap='Blues')
+    plt.show()
+
+  def save(self, filename):
+    # todo
+    pass
+
+  def load(self, filename):
+    # todo
+    pass
+
+  # getters
+  @property
+  def p0(self):
+    return np.squeeze(self._p0)
+
+  @property
+  def tp(self):
+    return self._tp
+
+  @property
+  def mu(self):
+    return self._mu
+
+  @property
+  def cov(self):
+    return self._cov
+
+  # end of front end functions ################################################
+
+
+  # implementation functions ##################################################
   def _create_the_computational_graph(self, reports=False):
     tic = time.time()
     #    self._N = tf.placeholder(tf.int32)
@@ -126,7 +188,6 @@ class HiddenMarkovModel(object):
       if self._reports:
         print('the computation graph has been recreated in %.1f sec'%(toc-tic))
 
-  # implementation functions
   def _emissions_eval(self):
     with tf.variable_scope('emissions_eval'):
       x_expanded = tf.expand_dims(self._dataset_tf, -2)
@@ -288,6 +349,4 @@ class HiddenMarkovModel(object):
         tf.expand_dims(
           tf.reduce_sum(gamma_r, reduction_indices=[0, 1]), -1), -1)
 
-  def plot(self):
-    # todo
-    pass
+# end of implementation functions #############################################

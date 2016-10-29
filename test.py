@@ -9,12 +9,14 @@ dataset = toy_dataset(30, 64)
 
 hmm.expectation_maximization(dataset, max_steps=10)
 
+hmm.plot()
+
 print('### p0 ###')
-print(hmm._p0)
+print(hmm.p0)
 print('### tp ###')
-print(hmm._tp)
+print(hmm.tp)
 print('### mu ###')
-print(hmm._mu)
+print(hmm.mu)
 print('### cov ###')
-print(hmm._cov)
+print(hmm.cov)
 
