@@ -43,8 +43,15 @@ class HiddenMarkovModel(object):
 
   # front end functions #######################################################
 
-  def expectation_maximization(self, dataset, max_steps=1, epsilon=0.1):
+  def expectation_maximization(self, dataset, max_steps=1, epsilon=0.1,
+                               codes=None):
     self._recreate_the_computational_graph(dataset)
+    if codes is not None:
+      idx_list = []
+      for i in range(len(codes)):
+        if codes[i] == self._code_number:
+          idx_list.append(i)
+      dataset = dataset[idx_list]
     converged = False
     tic = time.time()
     with tf.Session() as sess:
@@ -90,9 +97,10 @@ class HiddenMarkovModel(object):
       feed_dict = {self._dataset_tf: dataset, self._mu_tf: self._mu,
                    self._cov_tf: self._cov, self._p0_tf: self._p0,
                    self._tp_tf: self._tp}
-      return sess.run(self._posterior, feed_dict=feed_dict)
+      return np.squeeze(sess.run(self._posterior, feed_dict=feed_dict))
 
   def plot(self, dataset=None):
+    # matplotlib.use('Agg')
     plt.style.use('fivethirtyeight')
     font = matplotlib.font_manager.FontProperties(weight='bold', size=14)
     x = np.linspace(-4, 4, 100)
@@ -105,8 +113,8 @@ class HiddenMarkovModel(object):
                                          muy=self.mu[0, 1],
                                          sigmaxy=self.cov[0, 0, 1])
     plt.annotate('state #'+str(1),
-                 (self.mu[0,0]+0.5*np.sqrt(self.cov[0,0, 0]),
-                  self.mu[0,1]+0.5*np.sqrt(self.cov[0,1, 1])),
+                 (self.mu[0, 0]+0.5*np.sqrt(self.cov[0, 0, 0]),
+                  self.mu[0, 1]+0.5*np.sqrt(self.cov[0, 1, 1])),
                  fontproperties=font, color='purple')
     for k in range(1, self._states):
       z += matplotlib.mlab.bivariate_normal(x_mesh, y_mesh,
@@ -116,12 +124,13 @@ class HiddenMarkovModel(object):
                                             muy=self.mu[k, 1],
                                             sigmaxy=self.cov[k, 0, 1])
       plt.annotate('state #'+str(k+1),
-                   (self.mu[k,0]+0.5*np.sqrt(self.cov[k,0, 0]),
-                    self.mu[k,1]+0.5*np.sqrt(self.cov[k,1, 1])),
+                   (self.mu[k, 0]+0.5*np.sqrt(self.cov[k, 0, 0]),
+                    self.mu[k, 1]+0.5*np.sqrt(self.cov[k, 1, 1])),
                    fontproperties=font, color='purple')
       # plt.contourf(x_mesh, y_mesh, z, alpha=0.5, cmap='Blues')
 
-    plt.contourf(x_mesh, y_mesh, z, alpha=0.5, cmap='Blues')
+    plt.contourf(x_mesh, y_mesh, z, alpha=0.6, cmap='Blues')
+    plt.savefig('1')
     plt.show()
 
   def save(self, filename):

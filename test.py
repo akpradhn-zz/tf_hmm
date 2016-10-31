@@ -3,12 +3,15 @@ from toy_dataset import toy_dataset
 import tensorflow as tf
 import time
 
-hmm = HiddenMarkovModel(2, 2, time_steps=64, reports=True)
+hmm = HiddenMarkovModel(2, 2, time_steps=64, reports=True, code_number=1)
 
-dataset = toy_dataset(30, 64)
+# training using the 1st, 2nd, 3rd, 4th, 8th and 9th members of the dataset
+codes = [1, 1, 1, 1, 0, 0, 0, 1, 1, 0]
 
-hmm.expectation_maximization(dataset, max_steps=10)
+dataset = toy_dataset(10, 64)
 
+print(hmm.posterior(dataset))
+hmm.expectation_maximization(dataset, max_steps=100, codes=codes)
 hmm.plot()
 
 print('### p0 ###')
@@ -19,4 +22,6 @@ print('### mu ###')
 print(hmm.mu)
 print('### cov ###')
 print(hmm.cov)
+print()
 
+print(hmm.posterior(dataset))
