@@ -7,7 +7,7 @@ COPY jupyter_notebook_config.py /root/.jupyter/
 
 # Copy sample notebooks.
 RUN mkdir /tf_hmm
-RUN mkdir /tf_hmm/.logs
+#RUN mkdir /tf_hmm/.logs
 COPY tf_hmm.py /tf_hmm/tf_hmm.py
 COPY toy_dataset.py /tf_hmm/toy_dataset.py
 COPY notebook.ipynb /tf_hmm/notebook.ipynb

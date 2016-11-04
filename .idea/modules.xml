@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../signal_wpfe/.idea/signal_wpfe.iml" filepath="$PROJECT_DIR$/../signal_wpfe/.idea/signal_wpfe.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/tf_hmm.iml" filepath="$PROJECT_DIR$/.idea/tf_hmm.iml" />
     </modules>
   </component>

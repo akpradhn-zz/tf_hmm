@@ -37,6 +37,9 @@ class HiddenMarkovModel(object):
     self._new_mu = None
     self._new_cov = None
 
+    # the whole graph
+    self._graph = tf.Graph()
+
     if time_steps is not None:
       self._time_steps = time_steps
       self._create_the_computational_graph(reports=self._reports)
@@ -54,7 +57,7 @@ class HiddenMarkovModel(object):
       dataset = dataset[idx_list]
     converged = False
     tic = time.time()
-    with tf.Session() as sess:
+    with tf.Session(graph=self._graph) as sess:
       step = 0
       posterior = None
       sess.run(tf.initialize_all_variables())
@@ -92,7 +95,7 @@ class HiddenMarkovModel(object):
 
   def posterior(self, dataset):
     self._recreate_the_computational_graph(dataset)
-    with tf.Session() as sess:
+    with tf.Session(graph=self._graph) as sess:
       sess.run(tf.initialize_all_variables())
       feed_dict = {self._dataset_tf: dataset, self._mu_tf: self._mu,
                    self._cov_tf: self._cov, self._p0_tf: self._p0,
@@ -134,12 +137,23 @@ class HiddenMarkovModel(object):
     plt.show()
 
   def save(self, filename):
-    # todo
-    pass
+    if 'hmm' not in filename:
+      filename += '_hmm'
+    f = open(filename,'w')
+    np.savez(filename, self._p0, self._tp, self._mu, self._cov)
+    f.close()
 
   def load(self, filename):
-    # todo
-    pass
+    #f = open(filename,'r')
+    if 'hmm' not in filename:
+      filename += '_hmm'
+    if '.npz' not in filename:
+      filename += '.npz'
+    np_file = np.load(filename)
+    self._p0 = np_file['arr_0']
+    self._tp = np_file['arr_1']
+    self._mu = np_file['arr_2']
+    self._cov = np_file['arr_3']
 
   # getters
   @property
@@ -163,35 +177,36 @@ class HiddenMarkovModel(object):
 
   # implementation functions ##################################################
   def _create_the_computational_graph(self, reports=False):
-    tic = time.time()
-    #    self._N = tf.placeholder(tf.int32)
-    self._p0_tf = tf.placeholder(tf.float64, shape=[1, self._states])
-    self._tp_tf = tf.placeholder(tf.float64,
-                                 shape=[self._states, self._states])
-    self._mu_tf = tf.placeholder(tf.float64,
-                                 shape=[self._states, self._data_dim])
-    self._cov_tf = tf.placeholder(tf.float64,
-                                  shape=[self._states, self._data_dim,
-                                         self._data_dim])
-    self._dataset_tf = tf.placeholder(tf.float64,
-                                      shape=[None,
-                                             self._time_steps,
-                                             self._data_dim])
-    self._emissions_eval()
-    self._forward()
-    self._backward()
-    self._expectation()
-    self._maximization()
-    toc = time.time()
-    if reports:
-      print('the computational graph has been created in %.1f sec'%(toc-tic))
+    with self._graph.as_default():
+      tic = time.time()
+      #    self._N = tf.placeholder(tf.int32)
+      self._p0_tf = tf.placeholder(tf.float64, shape=[1, self._states])
+      self._tp_tf = tf.placeholder(tf.float64,
+                                   shape=[self._states, self._states])
+      self._mu_tf = tf.placeholder(tf.float64,
+                                   shape=[self._states, self._data_dim])
+      self._cov_tf = tf.placeholder(tf.float64,
+                                    shape=[self._states, self._data_dim,
+                                           self._data_dim])
+      self._dataset_tf = tf.placeholder(tf.float64,
+                                        shape=[None,
+                                               self._time_steps,
+                                               self._data_dim])
+      self._emissions_eval()
+      self._forward()
+      self._backward()
+      self._expectation()
+      self._maximization()
+      toc = time.time()
+      if reports:
+        print('the computational graph has been created in %.1f sec'%(toc-tic))
 
   def _recreate_the_computational_graph(self, dataset):
     dataset_shape = dataset.shape
     if not dataset_shape[1] == self._time_steps:
       self._time_steps = dataset_shape[1]
       tic = time.time()
-      tf.reset_default_graph()
+      self._graph = tf.Graph()
       self._create_the_computational_graph()
       toc = time.time()
       if self._reports:

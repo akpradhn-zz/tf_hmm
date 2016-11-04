@@ -7,7 +7,6 @@ hmm = HiddenMarkovModel(2, 2, time_steps=64, reports=True, code_number=1)
 
 # training using the 1st, 2nd, 3rd, 4th, 8th and 9th members of the dataset
 codes = [1, 1, 1, 1, 0, 0, 0, 1, 1, 0]
-
 dataset = toy_dataset(10, 64)
 
 print(hmm.posterior(dataset))
@@ -23,5 +22,7 @@ print(hmm.mu)
 print('### cov ###')
 print(hmm.cov)
 print()
+
+hmm.save('example')
 
 print(hmm.posterior(dataset))
