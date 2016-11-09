@@ -3,14 +3,15 @@ import tensorflow as tf
 import matplotlib
 import matplotlib.pyplot as plt
 import time
+import toy_dataset
 
 
 class HiddenMarkovModel(object):
-  def __init__(self, states=3, data_dim=2, time_steps=None, reports=False,
+  def __init__(self, states=3, data_dim=2, reports=False,
                code_number=None):
     self._states = states
     self._data_dim = data_dim
-    self._time_steps = None
+    # self._time_steps = None
     self._reports = reports
     self._code_number = code_number
     #    self._dataset_members = None
@@ -39,16 +40,19 @@ class HiddenMarkovModel(object):
 
     # the whole graph
     self._graph = tf.Graph()
+    self._create_the_computational_graph(reports=self._reports)
 
-    if time_steps is not None:
-      self._time_steps = time_steps
-      self._create_the_computational_graph(reports=self._reports)
+  ####### front end functions : begin #########################################
+  def posterior(self, dataset):
+    with tf.Session(graph=self._graph) as sess:
+      sess.run(tf.initialize_all_variables())
+      feed_dict = {self._dataset_tf: dataset, self._mu_tf: self._mu,
+                   self._cov_tf: self._cov, self._p0_tf: self._p0,
+                   self._tp_tf: self._tp}
+      return np.squeeze(sess.run(self._posterior, feed_dict=feed_dict))
 
-  # front end functions #######################################################
-
-  def expectation_maximization(self, dataset, max_steps=1, epsilon=0.1,
+  def expectation_maximization(self, dataset, max_steps=10, epsilon=0.1,
                                codes=None):
-    self._recreate_the_computational_graph(dataset)
     if codes is not None:
       idx_list = []
       for i in range(len(codes)):
@@ -76,6 +80,7 @@ class HiddenMarkovModel(object):
 
         if step > 0:
           d_posterior = np.linalg.norm(posterior-posterior_old, 1)
+          print(d_posterior)
           if d_posterior < epsilon:
             converged = True
         step += 1
@@ -89,18 +94,6 @@ class HiddenMarkovModel(object):
           print('warning : the training process has not been converged. The '
                 'maximum number of steps has been reached in %.1f sec.'%(
                   toc-tic))
-
-  # writer = tf.train.SummaryWriter('./logs', sess.graph)
-  #    merged = tf.merge_all_summaries()
-
-  def posterior(self, dataset):
-    self._recreate_the_computational_graph(dataset)
-    with tf.Session(graph=self._graph) as sess:
-      sess.run(tf.initialize_all_variables())
-      feed_dict = {self._dataset_tf: dataset, self._mu_tf: self._mu,
-                   self._cov_tf: self._cov, self._p0_tf: self._p0,
-                   self._tp_tf: self._tp}
-      return np.squeeze(sess.run(self._posterior, feed_dict=feed_dict))
 
   def plot(self, dataset=None):
     # matplotlib.use('Agg')
@@ -139,12 +132,12 @@ class HiddenMarkovModel(object):
   def save(self, filename):
     if 'hmm' not in filename:
       filename += '_hmm'
-    f = open(filename,'w')
+    f = open(filename, 'w')
     np.savez(filename, self._p0, self._tp, self._mu, self._cov)
     f.close()
 
   def load(self, filename):
-    #f = open(filename,'r')
+    # f = open(filename,'r')
     if 'hmm' not in filename:
       filename += '_hmm'
     if '.npz' not in filename:
@@ -172,10 +165,9 @@ class HiddenMarkovModel(object):
   def cov(self):
     return self._cov
 
-  # end of front end functions ################################################
+  ####### front end functions : end ###########################################
 
 
-  # implementation functions ##################################################
   def _create_the_computational_graph(self, reports=False):
     with self._graph.as_default():
       tic = time.time()
@@ -190,7 +182,7 @@ class HiddenMarkovModel(object):
                                            self._data_dim])
       self._dataset_tf = tf.placeholder(tf.float64,
                                         shape=[None,
-                                               self._time_steps,
+                                               None,
                                                self._data_dim])
       self._emissions_eval()
       self._forward()
@@ -198,19 +190,9 @@ class HiddenMarkovModel(object):
       self._expectation()
       self._maximization()
       toc = time.time()
-      if reports:
-        print('the computational graph has been created in %.1f sec'%(toc-tic))
-
-  def _recreate_the_computational_graph(self, dataset):
-    dataset_shape = dataset.shape
-    if not dataset_shape[1] == self._time_steps:
-      self._time_steps = dataset_shape[1]
-      tic = time.time()
-      self._graph = tf.Graph()
-      self._create_the_computational_graph()
-      toc = time.time()
-      if self._reports:
-        print('the computation graph has been recreated in %.1f sec'%(toc-tic))
+      # if reports:
+      self._init = tf.initialize_all_variables()
+      print('the computational graph has been created in %.1f sec'%(toc-tic))
 
   def _emissions_eval(self):
     with tf.variable_scope('emissions_eval'):
@@ -233,102 +215,89 @@ class HiddenMarkovModel(object):
 
   def _forward(self):
     with tf.variable_scope('forward'):
+      n = tf.shape(self._dataset_tf)[1]
       # alpha shape : (N, I, states)
-      # c shape : (N, I)
-      alpha_list = []
-      c_list = []
-      a_tmp = tf.mul(self._emissions[:, 0, :],
-                     tf.squeeze(self._p0_tf))
-      c_tmp = tf.expand_dims(tf.reduce_sum(a_tmp, reduction_indices=-1), -1)
-      alpha_list.append(a_tmp)
-      c_list.append(c_tmp)
-      # for n = 1..N
-      for n in range(1, self._time_steps):
-        # calculate alpha[n-1] tp
-        alpha_tp = tf.matmul(alpha_list[n-1], self._tp_tf)
-        # calculate p(x|z) \sum_z alpha[n-1] tp
-        a_tmp = tf.mul(tf.squeeze(self._emissions[:, n, :]), alpha_tp)
-        c_tmp = tf.expand_dims(tf.reduce_sum(a_tmp, reduction_indices=-1), -1)
-        alpha_list.append(a_tmp/c_tmp)
-        c_list.append(c_tmp)
-      self._alpha = tf.pack(alpha_list)
-      self._c = tf.pack(c_list)
+      # c shape : (N, I, 1)
+      a_0_tmp = tf.expand_dims(tf.mul(self._emissions[:, 0, :],
+                                      tf.squeeze(self._p0_tf)), 0)
+      c_0 = tf.expand_dims(tf.reduce_sum(a_0_tmp, reduction_indices=-1),
+                           -1)
+      alpha_0 = a_0_tmp/c_0
+      i0 = tf.constant(1)
+      # ??? i0 = 0 or i0 = 1 ???
+      condition_forward = lambda i, alpha, c: tf.less(i, n)
+      _, self._alpha, self._c = \
+        tf.while_loop(condition_forward, self._forward_step,
+                      [i0, alpha_0, c_0],
+                      shape_invariants=[i0.get_shape(),
+                                        tf.TensorShape(
+                                          [None, None, self._states]),
+                                        tf.TensorShape([None, None, 1])])
       self._posterior = tf.reduce_sum(tf.log(self._c), reduction_indices=0)
 
   def _backward(self):
     with tf.variable_scope('backward'):
-      betta_list = []
-      b_p_list = []
+      n = tf.shape(self._dataset_tf)[1]
       shape = tf.shape(self._dataset_tf)[0]
       dims = tf.pack([shape, self._states])
       b_tmp_ = tf.fill(dims, 1.0)
-      b_tmp = tf.ones_like(b_tmp_, dtype=tf.float64)
-      betta_list.append(b_tmp)
-      # b_tmp = tf.ones_like()
-      # betta shape : (N, I, states)
-      # c shape : (N, I)
-      # self._betta = tf.Variable(
-      #  tf.ones([self._time_steps, self._dataset_members, self._states],
-      #          dtype=tf.float64),
-      #  dtype=tf.float64,
-      #  name='betta_backward')
-      # self._b_p = tf.Variable(
-      #  tf.zeros([self._time_steps-1, self._dataset_members, self._states],
-      #           dtype=tf.float64),
-      #  dtype=tf.float64,
-      #  name='b_p')
-      # set betta[n] := 1
-      # It's already set
+      betta_0 = tf.expand_dims(tf.ones_like(b_tmp_, dtype=tf.float64), 0)
+      b_p_0 = tf.expand_dims(tf.ones_like(b_tmp_, dtype=tf.float64), 0)
+      i0 = tf.constant(1)
+      condition_backward = lambda i, betta, b_p: tf.less(i, n)
+      _, self._betta, b_p_tmp = \
+        tf.while_loop(condition_backward, self._backward_step,
+                      [i0, betta_0, b_p_0],
+                      shape_invariants=[i0.get_shape(),
+                                        tf.TensorShape(
+                                          [None, None, self._states]),
+                                        tf.TensorShape(
+                                          [None, None, self._states])])
+      self._b_p = b_p_tmp[:-1, :, :]
 
-      # for n = N..2
+  def _forward_step(self, n, alpha, c):
+    # calculate alpha[n-1] tp
+    alpha_tp = tf.matmul(alpha[n-1], self._tp_tf)
+    # calculate p(x|z) \sum_z alpha[n-1] tp
+    a_n_tmp = tf.mul(tf.squeeze(self._emissions[:, n, :]), alpha_tp)
+    c_n_tmp = tf.expand_dims(tf.reduce_sum(a_n_tmp, reduction_indices=-1), -1)
+    return [n+1, tf.concat(0, [alpha, tf.expand_dims(a_n_tmp/c_n_tmp, 0)]),
+            tf.concat(0, [c, tf.expand_dims(c_n_tmp, 0)])]
 
-      for n in range(self._time_steps-2, -1, -1):
-        # calculate betta[n+1] p(x|z)
-        b_p_tmp = tf.mul(betta_list[0],
-                         tf.squeeze(self._emissions[:, n+1, :]))
-        # calculate \sum_z  tp betta[n+1] p(x|z)
-        b_tmp = tf.matmul(b_p_tmp, self._tp_tf, transpose_b=True)
-        betta_list.insert(0, b_tmp/self._c[n+1])
-        b_p_list.insert(0, b_p_tmp)
-        # self._betta = tf.scatter_update(self._betta,
-        #                                tf.Variable(n, dtype=tf.int32),
-        #                                b_tmp/self._c[n+1])
-        # self._b_p = tf.scatter_update(self._b_p,
-        #                              tf.Variable(n, dtype=tf.int32),
-        #                              b_p_tmp)
-      self._betta = tf.pack(betta_list)
-      self._b_p = tf.pack(b_p_list)
+  def _backward_step(self, n, betta, b_p):
+    b_p_tmp = tf.mul(betta[0],
+                     tf.squeeze(self._emissions[:, -n, :]))
+    b_n_tmp = tf.matmul(b_p_tmp, self._tp_tf, transpose_b=True)/self._c[-n]
+    return [n+1, tf.concat(0, [tf.expand_dims(b_n_tmp, 0), betta]),
+            tf.concat(0, [tf.expand_dims(b_p_tmp, 0), b_p])]
+
+  def _xi_calc(self, n, xi):
+    a_b_p = tf.batch_matmul(
+      tf.expand_dims(self._alpha[n-1]/self._c[n], -1),
+      tf.expand_dims(self._b_p[n-1], -1), adj_y=True)
+    xi_n_tmp = tf.mul(a_b_p, self._tp_tf)
+    return [n+1, tf.concat(0, [xi, tf.expand_dims(xi_n_tmp, 0)])]
+    pass
 
   def _expectation(self):
     with tf.variable_scope('expectation'):
       # gamma shape : (N, I, states)
       self._gamma = tf.mul(self._alpha, self._betta, name='gamma')
-      # xi shape : (N-1, I, states,states)
-      # shape = tf.shape(self._dataset_tf)[0]
-      # dims = tf.pack([shape, self._states])
-      # xi_tmp_ = tf.fill(dims, 1.0)
-      # xi_tmp = tf.ones_like(xi_tmp_, dtype=tf.float64)
-      # self._xi = tf.Variable(
-      #  tf.zeros([self._time_steps-1, self._dataset_members, self._states,
-      #            self._states],
-      #           dtype=tf.float64),
-      #  dtype=tf.float64,
-      #  name='xi')
-      # for n = 2..N
-      xi_list = []
-      for n in range(1, self._time_steps):
-        # betta[n] p(x_n|z_n)
-        # done, b_p from the backward algorithm
-
-        # alpha[n-1] betta[n] p(x_n|z_n)
-        a_b_p = tf.batch_matmul(
-          tf.expand_dims(self._alpha[n-1]/self._c[n], -1),
-          tf.expand_dims(self._b_p[n-1], -1), adj_y=True)
-        xi_tmp = tf.mul(a_b_p, self._tp_tf)
-        xi_list.append(xi_tmp)
-        # self._xi = tf.scatter_update(self._xi,
-        #                             tf.Variable(n-1, dtype=tf.int32), xi_tmp)
-      self._xi = tf.pack(xi_list)
+      n = tf.shape(self._dataset_tf)[1]
+      shape = tf.shape(self._dataset_tf)[0]
+      dims = tf.pack([shape, self._states, self._states])
+      xi_tmp_ = tf.fill(dims, 1.0)
+      xi_0 = tf.expand_dims(tf.ones_like(xi_tmp_, dtype=tf.float64), 0)
+      i0 = tf.constant(1)
+      condition_xi = lambda i, xi: tf.less(i, n)
+      _, xi_tmp = tf.while_loop(condition_xi, self._xi_calc,
+                                [i0, xi_0],
+                                shape_invariants=[i0.get_shape(),
+                                                  tf.TensorShape(
+                                                    [None, None,
+                                                     self._states,
+                                                     self._states])])
+      self._xi = xi_tmp[1:, :, :]
 
   def _maximization(self):
     with tf.variable_scope('maximization'):
@@ -372,5 +341,3 @@ class HiddenMarkovModel(object):
                                     reduction_indices=[0, 1])/tf.expand_dims(
         tf.expand_dims(
           tf.reduce_sum(gamma_r, reduction_indices=[0, 1]), -1), -1)
-
-# end of implementation functions #############################################

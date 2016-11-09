@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/../signal_wpfe/.idea/signal_wpfe.iml" filepath="$PROJECT_DIR$/../signal_wpfe/.idea/signal_wpfe.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/tf_hmm.iml" filepath="$PROJECT_DIR$/.idea/tf_hmm.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../toy_tensorflow/.idea/toy_tensorflow.iml" filepath="$PROJECT_DIR$/../toy_tensorflow/.idea/toy_tensorflow.iml" />
     </modules>
   </component>
 </project>

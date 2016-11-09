@@ -5,6 +5,7 @@
     <orderEntry type="jdk" jdkName="Remote Python 3.4.3 Docker (kesmarag/research:py3)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="signal_wpfe" />
+    <orderEntry type="module" module-name="toy_tensorflow" />
   </component>
   <component name="TestRunnerService">
     <option name="projectConfiguration" value="Nosetests" />
